@@ -74,10 +74,15 @@
             LogOut: (props) => <IconWrapper {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></IconWrapper>,
             Lock: (props) => <IconWrapper {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></IconWrapper>,
             Info: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></IconWrapper>,
-            Check: (props) => <IconWrapper {...props}><polyline points="20 6 9 17 4 12" /></IconWrapper>
+            Check: (props) => <IconWrapper {...props}><polyline points="20 6 9 17 4 12" /></IconWrapper>,
+            HardDrive: (props) => <IconWrapper {...props}><line x1="22" x2="2" y1="12" y2="12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /><line x1="6" x2="6.01" y1="16" y2="16" /><line x1="10" x2="10.01" y1="16" y2="16" /></IconWrapper>,
+            RefreshCw: (props) => <IconWrapper {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></IconWrapper>,
+            Globe: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><line x1="2" x2="22" y1="12" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></IconWrapper>,
+            Activity: (props) => <IconWrapper {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></IconWrapper>,
+            Gauge: (props) => <IconWrapper {...props}><path d="M12 14c2.21 0 4-1.79 4-4V5H8v5c0 2.21 1.79 4 4 4z" /><path d="M12 14v8" /><path d="M4 14v1a8 8 0 0 0 16 0v-1" /></IconWrapper>
         };
 
-        const { Terminal, ShieldCheck, Zap, Wifi, Layers, Copy, LogOut, Lock, Info, Check } = Icons;
+        const { Terminal, ShieldCheck, Zap, Wifi, Layers, Copy, LogOut, Lock, Info, Check, HardDrive, RefreshCw, Globe, Activity, Gauge } = Icons;
 
         // --- DATA: COMMAND CATEGORIES ---
         const cmdCategories = [
@@ -89,7 +94,35 @@
                 commands: [
                     'sfc /scannow',
                     'DISM /Online /Cleanup-Image /CheckHealth',
-                    'DISM /Online /Cleanup-Image /RestoreHealth'
+                    'DISM /Online /Cleanup-Image /ScanHealth',
+                    'DISM /Online /Cleanup-Image /RestoreHealth',
+                    'perfmon /report'
+                ]
+            },
+            {
+                id: 'speed',
+                label: 'Internet Speed Test (Mbps)',
+                icon: <Gauge size={20} />,
+                description: 'Tests Download (20MB) and Upload (5MB) speeds. Includes safety cleanup so no temp files remain.',
+                commands: [
+                    'powershell -NoProfile -Command "Write-Host \'Testing Speed...\'; try { $f=$env:TEMP+\'\\speed.tmp\'; $u=\'https://speed.cloudflare.com/__down?bytes=20971520\'; $s=Get-Date; Invoke-WebRequest $u -OutFile $f -UseBasicParsing; $t=(Get-Date)-$s; $dl=(167.77/$t.TotalSeconds); Write-Host (\'Download: {0:N2} Mbps\' -f $dl) -ForegroundColor Green } catch { Write-Host \'DL Fail\' } finally { if(Test-Path $f){del $f -Force} }; try { $b=New-Object byte[] 5242880; $s=Get-Date; Invoke-WebRequest \'https://speed.cloudflare.com/__up\' -Method Post -Body $b -UseBasicParsing | Out-Null; $t=(Get-Date)-$s; $ul=(41.94/$t.TotalSeconds); Write-Host (\'Upload:   {0:N2} Mbps\' -f $ul) -ForegroundColor Yellow } catch { Write-Host \'UL Fail\' }"',
+                    'start https://fast.com',
+                    'start https://www.speedtest.net'
+                ]
+            },
+            {
+                id: 'diagnostics',
+                label: 'Full System Diagnostics',
+                icon: <Activity size={20} />,
+                description: 'Generates reports on Desktop for Peripherals, Power/Battery, Wi-Fi, Internet & Performance.',
+                commands: [
+                    'mkdir "%userprofile%\\Desktop\\PC_Health_Check"',
+                    'powercfg /batteryreport /output "%userprofile%\\Desktop\\PC_Health_Check\\Battery.html"',
+                    'netsh wlan show all > "%userprofile%\\Desktop\\PC_Health_Check\\Wifi_Info.txt"',
+                    'wmic path win32_pnpentity get caption, status > "%userprofile%\\Desktop\\PC_Health_Check\\Peripherals.txt"',
+                    'typeperf "\\Processor(_Total)\\% Processor Time" -sc 15 > "%userprofile%\\Desktop\\PC_Health_Check\\CPU_Usage.txt"',
+                    'ping 8.8.8.8 -n 10 > "%userprofile%\\Desktop\\PC_Health_Check\\Internet_Ping.txt"',
+                    'echo "All reports generated in Desktop\\PC_Health_Check folder."'
                 ]
             },
             {
@@ -120,6 +153,19 @@
                 ]
             },
             {
+                id: 'edge',
+                label: 'Edge Safe Clean',
+                icon: <Globe size={20} />,
+                description: 'Clears Microsoft Edge Cache, GPU Cache, and Code Cache. Safe for passwords and bookmarks.',
+                commands: [
+                    'taskkill /f /im msedge.exe',
+                    'del /q /f /s "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache\\*"',
+                    'del /q /f /s "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\GPUCache\\*"',
+                    'del /q /f /s "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache\\*"',
+                    'start msedge'
+                ]
+            },
+            {
                 id: 'network',
                 label: 'Network Refresh (Safe)',
                 icon: <Wifi size={20} />,
@@ -128,6 +174,30 @@
                     'ipconfig /flushdns',
                     'ipconfig /release',
                     'ipconfig /renew'
+                ]
+            },
+            {
+                id: 'disk',
+                label: 'Disk Health Analysis',
+                icon: <HardDrive size={20} />,
+                description: 'Checks S.M.A.R.T status and scans specific drive partitions for errors (Read Only).',
+                commands: [
+                    'wmic diskdrive get status',
+                    'chkdsk C: /scan',
+                    'defrag C: /Analyze'
+                ]
+            },
+            {
+                id: 'update',
+                label: 'Fix Windows Update',
+                icon: <RefreshCw size={20} />,
+                description: 'Fixes stuck updates and high CPU usage by resetting the update download cache.',
+                commands: [
+                    'net stop wuauserv',
+                    'net stop bits',
+                    'del /f /s /q C:\\Windows\\SoftwareDistribution\\Download\\*',
+                    'net start wuauserv',
+                    'net start bits'
                 ]
             },
             {
