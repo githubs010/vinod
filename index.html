@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System CMD Master Tool</title>
+    <title>System CMD Master Tool - Matrix Edition</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -11,32 +11,75 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Google Fonts: VT323 for retro terminal look -->
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        
+        :root {
+            --neon-green: #0f0;
+            --terminal-bg: rgba(0, 0, 0, 0.85);
+            --glass-bg: rgba(0, 20, 0, 0.65);
+            --glass-border: rgba(34, 197, 94, 0.2);
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Slate 900 */
+            background-color: #000;
             color: #e2e8f0;
+            overflow: hidden; /* Prevent body scroll, handle inside app */
         }
-        .font-mono {
-            font-family: 'JetBrains Mono', monospace;
+
+        .font-matrix {
+            font-family: 'VT323', monospace;
+        }
+
+        /* Matrix Canvas Background */
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0; /* Base layer */
+            pointer-events: none;
+        }
+
+        /* Glassmorphism Utilities */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3); 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #22c55e; /* Green hover */
+        }
+
+        /* Neon Text Glow */
+        .text-glow {
+            text-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
         }
         
-        /* Custom Scrollbar for the terminal window */
-        .terminal-scroll::-webkit-scrollbar {
-            width: 8px;
+        /* Terminal Cursor Blink */
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
         }
-        .terminal-scroll::-webkit-scrollbar-track {
-            background: #1e293b; 
-        }
-        .terminal-scroll::-webkit-scrollbar-thumb {
-            background: #475569; 
-            border-radius: 4px;
-        }
-        .terminal-scroll::-webkit-scrollbar-thumb:hover {
-            background: #64748b; 
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
         }
     </style>
 </head>
@@ -44,53 +87,71 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // --- ICONS (Embedded to prevent external library errors) ---
+        // --- ICONS ---
         const IconWrapper = ({ children, size = 24, className = "" }) => (
-            <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width={size} 
-                height={size} 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className={className}
-            >
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {children}
             </svg>
         );
 
         const Icons = {
-            Terminal: (props) => <IconWrapper {...props}><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></IconWrapper>,
-            ShieldCheck: (props) => <IconWrapper {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" /><path d="m9 12 2 2 4-4" /></IconWrapper>,
-            Zap: (props) => <IconWrapper {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></IconWrapper>,
-            Wifi: (props) => <IconWrapper {...props}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></IconWrapper>,
-            Layers: (props) => <IconWrapper {...props}><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></IconWrapper>,
-            Copy: (props) => <IconWrapper {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></IconWrapper>,
-            LogOut: (props) => <IconWrapper {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></IconWrapper>,
-            Lock: (props) => <IconWrapper {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></IconWrapper>,
-            Info: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></IconWrapper>,
-            Check: (props) => <IconWrapper {...props}><polyline points="20 6 9 17 4 12" /></IconWrapper>,
-            HardDrive: (props) => <IconWrapper {...props}><line x1="22" x2="2" y1="12" y2="12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /><line x1="6" x2="6.01" y1="16" y2="16" /><line x1="10" x2="10.01" y1="16" y2="16" /></IconWrapper>,
-            RefreshCw: (props) => <IconWrapper {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></IconWrapper>,
-            Globe: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><line x1="2" x2="22" y1="12" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></IconWrapper>,
-            Activity: (props) => <IconWrapper {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></IconWrapper>,
-            Gauge: (props) => <IconWrapper {...props}><path d="M12 14c2.21 0 4-1.79 4-4V5H8v5c0 2.21 1.79 4 4 4z" /><path d="M12 14v8" /><path d="M4 14v1a8 8 0 0 0 16 0v-1" /></IconWrapper>
+            Terminal: (p) => <IconWrapper {...p}><polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" /></IconWrapper>,
+            Shield: (p) => <IconWrapper {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" /></IconWrapper>,
+            Zap: (p) => <IconWrapper {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></IconWrapper>,
+            Wifi: (p) => <IconWrapper {...p}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></IconWrapper>,
+            Layers: (p) => <IconWrapper {...p}><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></IconWrapper>,
+            Copy: (p) => <IconWrapper {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></IconWrapper>,
+            LogOut: (p) => <IconWrapper {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></IconWrapper>,
+            Lock: (p) => <IconWrapper {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></IconWrapper>,
+            Check: (p) => <IconWrapper {...p}><polyline points="20 6 9 17 4 12" /></IconWrapper>,
+            Globe: (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="10" /><line x1="2" x2="22" y1="12" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></IconWrapper>,
+            Activity: (p) => <IconWrapper {...p}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></IconWrapper>,
+            HardDrive: (p) => <IconWrapper {...p}><line x1="22" x2="2" y1="12" y2="12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></IconWrapper>,
+            Refresh: (p) => <IconWrapper {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></IconWrapper>,
+            Gauge: (p) => <IconWrapper {...p}><path d="M12 14c2.21 0 4-1.79 4-4V5H8v5c0 2.21 1.79 4 4 4z" /><path d="M12 14v8" /></IconWrapper>,
+            Cpu: (p) => <IconWrapper {...p}><rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><path d="M9 1V4" /><path d="M15 1V4" /><path d="M9 20V23" /><path d="M15 20V23" /><path d="M20 9H23" /><path d="M20 14H23" /><path d="M1 9H4" /><path d="M1 14H4" /></IconWrapper>,
+            Database: (p) => <IconWrapper {...p}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></IconWrapper>,
+            Search: (p) => <IconWrapper {...p}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></IconWrapper>,
+            Keyboard: (p) => <IconWrapper {...p}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h2" /><path d="M10 10h2" /><path d="M14 10h2" /><path d="M18 10h2" /><path d="M6 14h2" /><path d="M10 14h8" /></IconWrapper>,
+            Speaker: (p) => <IconWrapper {...p}><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" /></IconWrapper>,
+            Bluetooth: (p) => <IconWrapper {...p}><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5" /></IconWrapper>,
+            Monitor: (p) => <IconWrapper {...p}><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></IconWrapper>
         };
 
-        const { Terminal, ShieldCheck, Zap, Wifi, Layers, Copy, LogOut, Lock, Info, Check, HardDrive, RefreshCw, Globe, Activity, Gauge } = Icons;
+        const { Terminal, Shield, Zap, Wifi, Layers, Copy, LogOut, Lock, Check, Globe, Activity, HardDrive, Refresh, Gauge, Cpu, Database, Search, Keyboard, Speaker, Bluetooth, Monitor } = Icons;
 
         // --- DATA: COMMAND CATEGORIES ---
         const cmdCategories = [
             {
+                id: 'input',
+                label: 'Input & Internet',
+                icon: <Keyboard size={20} />,
+                description: 'Checks Internet, WiFi, Keyboard & Mouse. Reports missing devices or driver errors.',
+                commands: [
+                    'powershell -Command "Write-Host \'---INTERNET STATUS---\' -Fg Cyan; if (Test-Connection 8.8.8.8 -Count 1 -Quiet) { Write-Host \'   [WORKING] Connected\' -Fg Green } else { Write-Host \'   [NOT WORKING] Disconnected\' -Fg Red }; Write-Host \' \'; Write-Host \'---WIFI ADAPTER---\' -Fg Cyan; $wifi = Get-NetAdapter -Name *Wi-Fi* -ErrorAction SilentlyContinue; if ($wifi) { if ($wifi.Status -eq \'Up\') { Write-Host ($wifi.Name + \' [WORKING]\') -Fg Green } else { Write-Host ($wifi.Name + \' [FOUND BUT DISCONNECTED]\') -Fg Yellow } } else { Write-Host \'   [NOT FOUND] No WiFi Adapter\' -Fg Yellow }; Write-Host \' \'; Write-Host \'---KEYBOARDS---\' -Fg Cyan; $k = Get-CimInstance Win32_Keyboard -ErrorAction SilentlyContinue; if ($k) { $k | ForEach { Write-Host $_.Description -NoNewline; if($_.Status -eq \'OK\'){ Write-Host \' [WORKING]\' -Fg Green } else { Write-Host \' [DRIVER ERROR - FIX DRIVERS]\' -Fg Red } } } else { Write-Host \'   [NOT FOUND]\' -Fg Yellow }; Write-Host \' \'; Write-Host \'---MICE---\' -Fg Cyan; $m = Get-CimInstance Win32_PointingDevice -ErrorAction SilentlyContinue; if ($m) { $m | ForEach { Write-Host $_.Description -NoNewline; if($_.Status -eq \'OK\'){ Write-Host \' [WORKING]\' -Fg Green } else { Write-Host \' [DRIVER ERROR - FIX DRIVERS]\' -Fg Red } } } else { Write-Host \'   [NOT FOUND]\' -Fg Yellow }"',
+                    'ping 8.8.8.8 -n 1',
+                    'get-netadapter -Name *Wi-Fi*'
+                ]
+            },
+            {
+                id: 'peripherals',
+                label: 'Peripherals & Audio',
+                icon: <Monitor size={20} />,
+                description: 'Checks Monitor, Mic, Webcam & Bluetooth. Reports missing devices or driver errors.',
+                commands: [
+                    'powershell -Command "Write-Host \'---MONITOR/DISPLAY---\' -Fg Cyan; $gpu = Get-CimInstance Win32_VideoController; $gpu | ForEach { Write-Host $_.Caption -NoNewline; if($_.Status -eq \'OK\'){ Write-Host \' [WORKING]\' -Fg Green } else { Write-Host \' [DRIVER ERROR - FIX DRIVERS]\' -Fg Red } }; Write-Host \' \'; Write-Host \'---AUDIO/MIC HARDWARE---\' -Fg Cyan; $aud = Get-CimInstance Win32_SoundDevice -ErrorAction SilentlyContinue; if ($aud) { $aud | ForEach { Write-Host $_.Caption -NoNewline; if($_.Status -eq \'OK\'){ Write-Host \' [WORKING]\' -Fg Green } else { Write-Host \' [DRIVER ERROR - FIX DRIVERS]\' -Fg Red } } } else { Write-Host \'   [NOT FOUND]\' -Fg Yellow }; Write-Host \' \'; Write-Host \'---WEBCAM---\' -Fg Cyan; $cam = Get-PnpDevice -Class Camera -ErrorAction SilentlyContinue; if (!$cam) { $cam = Get-PnpDevice -Class Image -ErrorAction SilentlyContinue }; if ($cam) { $cam | Where-Object {$_.Status -eq \'OK\'} | Select -First 1 | ForEach { Write-Host $_.FriendlyName \' [WORKING]\' -Fg Green }; $cam | Where-Object {$_.Status -eq \'Error\'} | ForEach { Write-Host $_.FriendlyName \' [DRIVER ERROR - FIX DRIVERS]\' -Fg Red } } else { Write-Host \'   [NOT FOUND]\' -Fg Yellow }; Write-Host \' \'; Write-Host \'---BLUETOOTH---\' -Fg Cyan; $bt = Get-PnpDevice -Class Bluetooth -PresentOnly -ErrorAction SilentlyContinue; if ($bt) { $bt | Where-Object Status -eq \'OK\' | Select -First 1 | ForEach { Write-Host $_.FriendlyName \' [WORKING]\' -Fg Green }; $bt | Where-Object Status -eq \'Error\' | ForEach { Write-Host $_.FriendlyName \' [DRIVER ERROR - FIX DRIVERS]\' -Fg Red } } else { Write-Host \'   [NOT FOUND]\' -Fg Yellow }"',
+                    'wmic path Win32_VideoController get Caption, Status',
+                    'powershell -Command "Get-PnpDevice -Class Camera -PresentOnly | Select FriendlyName, Status"',
+                    'powershell -Command "Get-PnpDevice -Class Bluetooth -PresentOnly | Select FriendlyName, Status"'
+                ]
+            },
+            {
                 id: 'basic',
-                label: 'Basic System Health Check',
-                icon: <ShieldCheck size={20} />,
-                description: 'Scans and fixes corrupted Windows system files. Does NOT touch personal data.',
+                label: 'System Health',
+                icon: <Shield size={20} />,
+                description: 'Scans and fixes corrupted Windows system files.',
                 commands: [
                     'sfc /scannow',
                     'DISM /Online /Cleanup-Image /CheckHealth',
@@ -100,21 +161,34 @@
                 ]
             },
             {
-                id: 'speed',
-                label: 'Internet Speed Test (Mbps)',
-                icon: <Gauge size={20} />,
-                description: 'Tests Download (20MB) and Upload (5MB) speeds. Includes safety cleanup so no temp files remain.',
+                id: 'sysinfo',
+                label: 'System Info',
+                icon: <Cpu size={20} />,
+                description: 'View detailed hardware and OS configuration.',
                 commands: [
-                    'powershell -NoProfile -Command "Write-Host \'Testing Speed...\'; try { $f=$env:TEMP+\'\\speed.tmp\'; $u=\'https://speed.cloudflare.com/__down?bytes=20971520\'; $s=Get-Date; Invoke-WebRequest $u -OutFile $f -UseBasicParsing; $t=(Get-Date)-$s; $dl=(167.77/$t.TotalSeconds); Write-Host (\'Download: {0:N2} Mbps\' -f $dl) -ForegroundColor Green } catch { Write-Host \'DL Fail\' } finally { if(Test-Path $f){del $f -Force} }; try { $b=New-Object byte[] 5242880; $s=Get-Date; Invoke-WebRequest \'https://speed.cloudflare.com/__up\' -Method Post -Body $b -UseBasicParsing | Out-Null; $t=(Get-Date)-$s; $ul=(41.94/$t.TotalSeconds); Write-Host (\'Upload:   {0:N2} Mbps\' -f $ul) -ForegroundColor Yellow } catch { Write-Host \'UL Fail\' }"',
+                    'systeminfo',
+                    'wmic cpu get name, maxclockspeed',
+                    'wmic memorychip get capacity, speed',
+                    'wmic os get caption, osarchitecture',
+                    'hostname'
+                ]
+            },
+            {
+                id: 'speed',
+                label: 'Internet Speed',
+                icon: <Gauge size={20} />,
+                description: 'Tests network speeds (Download/Upload).',
+                commands: [
+                    'powershell -NoProfile -Command "Write-Host \'Testing Speed...\'; try { $f=$env:TEMP+\'\\speed.tmp\'; $u=\'https://speed.cloudflare.com/__down?bytes=20971520\'; $s=Get-Date; Invoke-WebRequest $u -OutFile $f -UseBasicParsing; $t=(Get-Date)-$s; $dl=(167.77/$t.TotalSeconds); Write-Host (\'Download: {0:N2} Mbps\' -f $dl) -ForegroundColor Green } catch { Write-Host \'DL Fail\' } finally { if(Test-Path $f){del $f -Force} }; try { $b=New-Object byte[] 5242880; $s=Get-Date; Invoke-WebRequest \'https://speed.cloudflare.com/__up\' -Method Post -Body $b -UseBasicParsing | Out-Null; $t=(Get-Date)-$s; $ul=(41.94/$t.TotalSeconds); Write-Host (\'Upload:    {0:N2} Mbps\' -f $ul) -ForegroundColor Yellow } catch { Write-Host \'UL Fail\' }"',
                     'start https://fast.com',
                     'start https://www.speedtest.net'
                 ]
             },
             {
                 id: 'diagnostics',
-                label: 'Full System Diagnostics',
+                label: 'Diagnostics',
                 icon: <Activity size={20} />,
-                description: 'Generates reports on Desktop for Peripherals, Power/Battery, Wi-Fi, Internet & Performance.',
+                description: 'Generates desktop reports for Battery, Wi-Fi, etc.',
                 commands: [
                     'mkdir "%userprofile%\\Desktop\\PC_Health_Check"',
                     'powercfg /batteryreport /output "%userprofile%\\Desktop\\PC_Health_Check\\Battery.html"',
@@ -122,14 +196,39 @@
                     'wmic path win32_pnpentity get caption, status > "%userprofile%\\Desktop\\PC_Health_Check\\Peripherals.txt"',
                     'typeperf "\\Processor(_Total)\\% Processor Time" -sc 15 > "%userprofile%\\Desktop\\PC_Health_Check\\CPU_Usage.txt"',
                     'ping 8.8.8.8 -n 10 > "%userprofile%\\Desktop\\PC_Health_Check\\Internet_Ping.txt"',
-                    'echo "All reports generated in Desktop\\PC_Health_Check folder."'
+                    'echo "Reports generated in Desktop\\PC_Health_Check"'
+                ]
+            },
+            {
+                id: 'netinfo',
+                label: 'Network Details',
+                icon: <Search size={20} />,
+                description: 'Advanced network configuration, MAC addresses, and ports.',
+                commands: [
+                    'ipconfig /all',
+                    'getmac /v',
+                    'netsh wlan show interfaces',
+                    'arp -a',
+                    'netstat -an'
+                ]
+            },
+            {
+                id: 'drivers',
+                label: 'Driver Check',
+                icon: <Database size={20} />,
+                description: 'List installed drivers and check for signing issues.',
+                commands: [
+                    'driverquery',
+                    'driverquery /si',
+                    'pnputil /enum-drivers',
+                    'wmic path win32_pnpentity where "status=\'Error\'" get caption'
                 ]
             },
             {
                 id: 'slow',
-                label: 'Fix Slow System (Safe)',
+                label: 'Speed Up PC',
                 icon: <Zap size={20} />,
-                description: 'Clears temp files, resets memory cache, and restarts Explorer. No data loss.',
+                description: 'Safe cleanup of temp files and memory.',
                 commands: [
                     'del /q /f /s %temp%\\*',
                     'del /q /f /s C:\\Windows\\Temp\\*',
@@ -141,9 +240,9 @@
             },
             {
                 id: 'chrome',
-                label: 'Chrome Safe Clean',
+                label: 'Chrome Clean',
                 icon: <Layers size={20} />,
-                description: 'Clears Cache, GPU Cache, and Code Cache. KEEPS passwords, bookmarks, and login sessions safe.',
+                description: 'Clears Chrome cache (Safe for passwords).',
                 commands: [
                     'taskkill /f /im chrome.exe',
                     'del /q /f /s "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache\\*"',
@@ -154,9 +253,9 @@
             },
             {
                 id: 'edge',
-                label: 'Edge Safe Clean',
+                label: 'Edge Clean',
                 icon: <Globe size={20} />,
-                description: 'Clears Microsoft Edge Cache, GPU Cache, and Code Cache. Safe for passwords and bookmarks.',
+                description: 'Clears Edge cache (Safe for passwords).',
                 commands: [
                     'taskkill /f /im msedge.exe',
                     'del /q /f /s "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache\\*"',
@@ -167,9 +266,9 @@
             },
             {
                 id: 'network',
-                label: 'Network Refresh (Safe)',
+                label: 'Fix Network',
                 icon: <Wifi size={20} />,
-                description: 'Flushes DNS to fix connectivity issues. Does NOT reset IP settings.',
+                description: 'Flushes DNS and renews IP connection.',
                 commands: [
                     'ipconfig /flushdns',
                     'ipconfig /release',
@@ -178,9 +277,9 @@
             },
             {
                 id: 'disk',
-                label: 'Disk Health Analysis',
+                label: 'Disk Check',
                 icon: <HardDrive size={20} />,
-                description: 'Checks S.M.A.R.T status and scans specific drive partitions for errors (Read Only).',
+                description: 'Analyzes drive health and status.',
                 commands: [
                     'wmic diskdrive get status',
                     'chkdsk C: /scan',
@@ -189,9 +288,9 @@
             },
             {
                 id: 'update',
-                label: 'Fix Windows Update',
-                icon: <RefreshCw size={20} />,
-                description: 'Fixes stuck updates and high CPU usage by resetting the update download cache.',
+                label: 'Fix Updates',
+                icon: <Refresh size={20} />,
+                description: 'Resets update download cache.',
                 commands: [
                     'net stop wuauserv',
                     'net stop bits',
@@ -201,24 +300,10 @@
                 ]
             },
             {
-                id: 'lowram',
-                label: 'Low RAM Optimization',
-                icon: <Layers size={20} />,
-                description: 'Stops heavy background apps and flushes memory for 4GB/8GB RAM systems.',
-                commands: [
-                    'taskkill /f /im OneDrive.exe',
-                    'taskkill /f /im Teams.exe',
-                    'taskkill /f /im msedge.exe',
-                    'echo off | clip',
-                    'taskkill /f /im explorer.exe',
-                    'start explorer.exe'
-                ]
-            },
-            {
                 id: 'oneclick',
-                label: 'Ultimate One-Click Fix',
+                label: 'One-Click Fix',
                 icon: <Terminal size={20} />,
-                description: 'Runs ALL safe checks and cleaners in one go.',
+                description: 'Runs ALL safe checks and cleaners.',
                 commands: [
                     'taskkill /f /im chrome.exe',
                     'sfc /scannow',
@@ -232,6 +317,56 @@
             }
         ];
 
+        // --- COMPONENT: MATRIX BACKGROUND ---
+        const MatrixBackground = () => {
+            const canvasRef = useRef(null);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                let width = canvas.width = window.innerWidth;
+                let height = canvas.height = window.innerHeight;
+
+                const cols = Math.floor(width / 20) + 1;
+                const ypos = Array(cols).fill(0);
+
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, width, height);
+
+                function matrix() {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                    ctx.fillRect(0, 0, width, height);
+
+                    ctx.fillStyle = '#0f0'; 
+                    ctx.font = '16pt VT323, monospace'; 
+
+                    ypos.forEach((y, index) => {
+                        const text = Math.random() > 0.5 ? '1' : '0'; 
+                        const x = index * 20;
+                        ctx.fillText(text, x, y);
+
+                        if (y > 100 + Math.random() * 10000) ypos[index] = 0;
+                        else ypos[index] = y + 20;
+                    });
+                }
+
+                const interval = setInterval(matrix, 50);
+
+                const handleResize = () => {
+                    width = canvas.width = window.innerWidth;
+                    height = canvas.height = window.innerHeight;
+                };
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    clearInterval(interval);
+                    window.removeEventListener('resize', handleResize);
+                };
+            }, []);
+
+            return <canvas id="matrix-canvas" ref={canvasRef} style={{position: 'fixed', top: 0, left: 0, zIndex: 0}} />;
+        };
+
         // --- COMPONENT: LOGIN SCREEN ---
         const LoginScreen = ({ onLogin }) => {
             const [username, setUsername] = useState('');
@@ -240,57 +375,51 @@
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                // Simulating Auth - In real app this goes to backend
                 if (username === 'admin' && password === 'admin') {
                     onLogin(username);
                 } else {
-                    setError('Invalid Credentials. Try admin / admin');
+                    setError('ACCESS DENIED: Try admin / admin');
                 }
             };
 
             return (
-                <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-                    <div className="bg-slate-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-slate-700">
+                <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
+                    <div className="glass-panel p-8 rounded-xl shadow-2xl w-full max-w-md animate-[fadeIn_0.5s_ease-in]">
                         <div className="flex justify-center mb-6">
-                            <div className="bg-blue-600 p-3 rounded-full">
-                                <Lock className="text-white" size={32} />
+                            <div className="bg-green-500/20 p-4 rounded-full border border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.3)]">
+                                <Lock className="text-green-400" size={32} />
                             </div>
                         </div>
-                        <h2 className="text-2xl font-bold text-center text-white mb-2">System CMD Access</h2>
-                        <p className="text-slate-400 text-center mb-6">Enter your credentials to continue</p>
+                        <h2 className="text-3xl font-matrix font-bold text-center text-green-400 mb-2 tracking-widest text-glow">SYSTEM ACCESS</h2>
+                        <p className="text-slate-400 text-center mb-8 font-mono text-xs">SECURE TERMINAL GATEWAY V2.0</p>
                         
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">User ID</label>
                                 <input 
                                     type="text" 
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-blue-500 transition"
-                                    placeholder="Enter User ID"
+                                    className="w-full bg-black/50 border border-slate-600 rounded p-3 text-green-400 placeholder-slate-600 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition font-mono"
+                                    placeholder="USER_ID"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
                                 <input 
                                     type="password" 
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-blue-500 transition"
-                                    placeholder="Enter Password"
+                                    className="w-full bg-black/50 border border-slate-600 rounded p-3 text-green-400 placeholder-slate-600 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition font-mono"
+                                    placeholder="PASSWORD"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                 />
                             </div>
-                            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+                            {error && <div className="text-red-500 text-sm text-center font-mono border border-red-900/50 bg-red-900/20 p-2 rounded">{error}</div>}
                             <button 
                                 type="submit" 
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200 transform active:scale-95"
+                                className="w-full bg-green-600 hover:bg-green-500 text-black font-bold py-3 rounded shadow-[0_0_10px_rgba(34,197,94,0.4)] transition duration-200 transform active:scale-95 font-matrix text-xl tracking-wider"
                             >
-                                Secure Login
+                                ESTABLISH CONNECTION
                             </button>
                         </form>
-                        <div className="mt-4 text-center text-xs text-slate-500">
-                            Default: admin / admin
-                        </div>
                     </div>
                 </div>
             );
@@ -308,11 +437,11 @@
                 textArea.value = text;
                 document.body.appendChild(textArea);
                 textArea.select();
-                document.execCommand('copy'); // Legacy support for iframe/older browsers
+                document.execCommand('copy');
                 document.body.removeChild(textArea);
                 
                 setCopiedIndex(index);
-                setTimeout(() => setCopiedIndex(null), 2000);
+                setTimeout(() => setCopiedIndex(null), 1500);
             };
 
             const copyAll = () => {
@@ -321,22 +450,23 @@
             };
 
             return (
-                <div className="min-h-screen bg-slate-900 flex flex-col md:flex-row">
+                <div className="h-screen flex flex-col md:flex-row relative z-10 overflow-hidden">
                     
-                    {/* Sidebar / Topbar */}
-                    <aside className="w-full md:w-64 bg-slate-800 border-r border-slate-700 flex flex-col">
-                        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-                            <h1 className="text-xl font-bold text-blue-400 tracking-wider">CMD MASTER</h1>
-                            <Terminal size={20} className="text-blue-400"/>
+                    {/* Sidebar */}
+                    <aside className="w-full md:w-72 glass-panel border-r border-white/10 flex flex-col h-full z-20">
+                        <div className="p-6 border-b border-white/10 flex items-center space-x-3 bg-black/40">
+                            <Terminal size={24} className="text-green-500 animate-pulse"/>
+                            <div>
+                                <h1 className="text-xl font-matrix font-bold text-green-400 tracking-[2px] text-glow">CMD MASTER</h1>
+                                <span className="text-[10px] text-slate-500 font-mono block">V3.0 // ONLINE</span>
+                            </div>
                         </div>
                         
-                        <div className="p-4 flex-grow overflow-y-auto">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 block">Select Operation</label>
-                            
-                            {/* Mobile Dropdown Replacement for Desktop List */}
-                            <div className="md:hidden mb-4">
+                        <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-1">
+                             {/* Mobile Select */}
+                             <div className="md:hidden mb-2">
                                 <select 
-                                    className="w-full bg-slate-900 text-white p-3 rounded border border-slate-600"
+                                    className="w-full bg-black/80 text-green-400 p-2 rounded border border-green-900"
                                     value={selectedId}
                                     onChange={(e) => setSelectedId(e.target.value)}
                                 >
@@ -346,102 +476,96 @@
                                 </select>
                             </div>
 
-                            {/* Desktop Sidebar Links */}
-                            <div className="hidden md:flex flex-col space-y-2">
+                            {/* Desktop List */}
+                            <div className="hidden md:block">
                                 {cmdCategories.map((cat) => (
                                     <button
                                         key={cat.id}
                                         onClick={() => setSelectedId(cat.id)}
-                                        className={`flex items-center space-x-3 p-3 rounded-lg transition duration-200 text-sm font-medium text-left ${
+                                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 text-sm font-medium border border-transparent ${
                                             selectedId === cat.id 
-                                            ? 'bg-blue-600 text-white shadow-lg' 
-                                            : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                                            ? 'bg-green-500/20 text-green-300 border-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.1)]' 
+                                            : 'text-slate-400 hover:bg-white/5 hover:text-white'
                                         }`}
                                     >
-                                        {cat.icon}
-                                        <span>{cat.label}</span>
+                                        <span className={selectedId === cat.id ? 'text-green-400' : 'text-slate-500'}>{cat.icon}</span>
+                                        <span className="font-mono tracking-tight">{cat.label}</span>
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="p-4 border-t border-slate-700 bg-slate-800/50">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center space-x-2">
-                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                                    <span className="text-xs text-slate-400">User: <span className="text-white font-bold">{user}</span></span>
-                                </div>
+                        <div className="p-4 bg-black/40 border-t border-white/10 mt-auto">
+                            <div className="flex items-center justify-between mb-3 px-2">
+                                <span className="text-xs font-mono text-green-600">USR: <span className="text-green-400">{user}</span></span>
+                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                             </div>
                             <button 
                                 onClick={onLogout}
-                                className="w-full flex items-center justify-center space-x-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 p-2 rounded-lg transition text-sm"
+                                className="w-full flex items-center justify-center space-x-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/30 p-2 rounded transition text-sm font-mono"
                             >
-                                <LogOut size={16} />
-                                <span>Logout</span>
+                                <LogOut size={14} />
+                                <span>DISCONNECT</span>
                             </button>
                         </div>
                     </aside>
 
                     {/* Main Content */}
-                    <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-                        <div className="max-w-4xl mx-auto">
+                    <main className="flex-1 p-4 md:p-8 overflow-y-auto custom-scroll relative">
+                        <div className="max-w-4xl mx-auto space-y-6">
                             
-                            {/* Header Section */}
-                            <header className="mb-8">
-                                <div className="flex items-center space-x-3 mb-2">
-                                    <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
-                                        {activeCategory.icon}
-                                    </div>
-                                    <h2 className="text-3xl font-bold text-white">{activeCategory.label}</h2>
+                            {/* Header Info */}
+                            <div className="glass-panel p-6 rounded-xl border-l-4 border-l-green-500 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    {activeCategory.icon}
                                 </div>
-                                <div className="flex items-start space-x-2 bg-slate-800 p-4 rounded-lg border border-slate-700 text-slate-300">
-                                    <Info className="flex-shrink-0 mt-1 text-blue-400" size={18} />
-                                    <p>{activeCategory.description}</p>
-                                </div>
-                            </header>
+                                <h2 className="text-3xl font-matrix text-green-400 mb-2 text-glow">{activeCategory.label.toUpperCase()}</h2>
+                                <p className="text-slate-300 font-mono text-sm max-w-2xl">{activeCategory.description}</p>
+                            </div>
 
-                            {/* Command Output Area */}
-                            <div className="bg-black rounded-xl border border-slate-700 shadow-2xl overflow-hidden">
-                                {/* Terminal Header */}
-                                <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
+                            {/* Terminal Window */}
+                            {/* Made significantly more transparent (bg-black/60) to show off the matrix rain */}
+                            <div className="bg-black/60 rounded-lg border border-slate-700 shadow-2xl overflow-hidden backdrop-blur-md">
+                                {/* Terminal Bar */}
+                                <div className="bg-[#1a1b26] px-4 py-2 flex items-center justify-between border-b border-slate-700">
                                     <div className="flex space-x-2">
-                                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                        <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                                        <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+                                        <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
                                     </div>
                                     <div className="text-xs text-slate-500 font-mono">Administrator: Command Prompt</div>
                                     <button 
                                         onClick={copyAll}
-                                        className="flex items-center space-x-1 text-xs bg-slate-700 hover:bg-blue-600 text-white px-3 py-1 rounded transition"
+                                        className="flex items-center space-x-1 text-xs bg-slate-700 hover:bg-green-600 hover:text-black text-white px-3 py-1 rounded transition font-mono"
                                     >
-                                        {copiedIndex === 'all' ? <Check size={14} /> : <Copy size={14} />}
-                                        <span>Copy All</span>
+                                        {copiedIndex === 'all' ? <Check size={12} /> : <Copy size={12} />}
+                                        <span>COPY_ALL</span>
                                     </button>
                                 </div>
 
-                                {/* Terminal Body */}
-                                <div className="p-6 font-mono text-sm md:text-base terminal-scroll bg-[#0c0c0c] min-h-[300px]">
+                                {/* Terminal Content */}
+                                <div className="p-6 font-mono text-sm md:text-base text-slate-300 min-h-[300px]">
                                     {activeCategory.commands.map((cmd, index) => (
-                                        <div key={index} className="group flex items-start justify-between mb-4 hover:bg-slate-900/50 p-2 rounded -mx-2 transition">
-                                            <div className="break-all pr-4">
-                                                <span className="text-slate-500 select-none mr-2">C:\Windows\System32&gt;</span>
-                                                <span className="text-green-400">{cmd}</span>
+                                        <div key={index} className="group flex items-center justify-between mb-2 hover:bg-white/5 p-2 rounded -mx-2 transition border border-transparent hover:border-white/5">
+                                            <div className="break-all pr-4 w-full flex items-center">
+                                                {/* Replaced repetitive C:\Windows... with simple > */}
+                                                <span className="text-green-600 mr-2 select-none">&gt;</span>
+                                                <div className="text-green-400 font-bold">{cmd}</div>
                                             </div>
                                             <button 
                                                 onClick={() => copyToClipboard(cmd, index)}
-                                                className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-white p-1"
-                                                title="Copy line"
+                                                className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-green-400 p-2"
+                                                title="Copy Command"
                                             >
                                                 {copiedIndex === index ? <Check size={16} className="text-green-500"/> : <Copy size={16}/>}
                                             </button>
                                         </div>
                                     ))}
-                                    <div className="animate-pulse text-green-400 font-bold">_</div>
+                                    <div className="flex items-center text-green-400 mt-6">
+                                        <span className="mr-2">&gt;</span>
+                                        <span className="w-2 h-5 bg-green-400 cursor-blink"></span>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div className="mt-6 text-center text-xs text-slate-500">
-                                <p>Note: Always run Command Prompt as <span className="text-white">Administrator</span> before pasting these commands.</p>
                             </div>
                         </div>
                     </main>
@@ -449,20 +573,30 @@
             );
         };
 
-        // --- APP ROOT ---
         const App = () => {
             const [user, setUser] = useState(null);
 
-            // Simple initialization check
             useEffect(() => {
-                // Any specific init logic if needed
+                const savedUser = sessionStorage.getItem('cmd_user');
+                if (savedUser) setUser(savedUser);
             }, []);
 
-            if (!user) {
-                return <LoginScreen onLogin={setUser} />;
-            }
+            const handleLogin = (u) => {
+                setUser(u);
+                sessionStorage.setItem('cmd_user', u);
+            };
 
-            return <Dashboard user={user} onLogout={() => setUser(null)} />;
+            const handleLogout = () => {
+                setUser(null);
+                sessionStorage.removeItem('cmd_user');
+            };
+
+            return (
+                <>
+                    <MatrixBackground />
+                    {!user ? <LoginScreen onLogin={handleLogin} /> : <Dashboard user={user} onLogout={handleLogout} />}
+                </>
+            );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
